@@ -116,18 +116,14 @@ int parse(char *argv[], int argc)
             }
         }
     }
-
-    // argv[argc -1] would be &
-    // else its another argument, so figure out what to do then
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
-    int MaxLine = 1024;
-    char command[MaxLine];
-    char *argvi[MaxLine];
-    char line[MaxLine];
+    char command[1024];
+    char *argvi[1024];
+    char line[1024];
     char *token = " ";
     int argci = 0;
     struct passwd *pwde;
@@ -154,7 +150,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         printf("Msh:%s:%s>", user, cwd);
-        if ((fgets(command, MaxLine, stdin) == NULL) && ferror(stdin))
+        if ((fgets(command, 1024, stdin) == NULL) && ferror(stdin))
         {
             fprintf(stderr, "Error: Failed to read from stdin. %s.\n", strerror(errno));
         }
@@ -180,6 +176,7 @@ int main(int argc, char *argv[])
             }
         }
         argci = 0;
+        memset(argvi, 0, 1024);
         // end of loop
     }
     return 0;
