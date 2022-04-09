@@ -1,21 +1,26 @@
-
 #include <stdio.h>
+#include <limits.h>
 #include <string.h>
 #include <pwd.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/errno.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/signal.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/signal.h>
+#include <stdlib.h>
+#include <sys/errno.h>
 #include "minishell.h"
 
 
+//cd function changes directory
 int cd(char *path)
 {
+
     struct passwd *pw;
     char *token = "";
     char cwd[PATH_MAX];
@@ -25,10 +30,8 @@ int cd(char *path)
         fprintf(stderr, "Error: Cannot get passwd entry. %s.\n", strerror(errno));
         return 1;
     }
-    
-    
-    const char *homeDir = pw->pw_dir;
-    if (strcmp(path, "cd") == 0)
+    const char *homeDir = pw->pw_dir; //getting path to directory
+    if (strcmp(path, "cd") == 0) //If no args just go to home
     {
         chdir(homeDir);
         return 0;
@@ -38,10 +41,8 @@ int cd(char *path)
         fprintf(stderr, "Error: Cannot get current working directory. %s.\n", strerror(errno));
         return 1;
     }
-
-    // loop start
-    token = strtok(path, "/");
-    while (token != NULL)
+    token = strtok(path, "/"); //Tokenizing the path parameter
+    while (token != NULL)//Going through a loop while updating the current directory to end up at desired directory
     {
         if (strcmp(token, "~") == 0)
         {
@@ -70,18 +71,20 @@ int cd(char *path)
     return 0;
 }
 
+
+
+//command_parser parses and runs the commands 
 int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
 {
     // Executes exit command if true
-    
-    if (strcmp(argv[0], "exit") == 0)
+    if (strcmp(argv[0], "exit") == 0) 
     {
-        if (argc >= 2)
+        if (argc >= 2) 
         {
             fprintf(stderr, "Error: Too many args for exit.\n");
             return 0;
         }
-        return 2; // symbol for exit
+        return 2; // Value used to let main function now to exit the while loop
     }
 
     // Executes cd command if true
@@ -97,30 +100,28 @@ int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
             fprintf(stderr, "Error: Too many args for cd.\n");
             return 0;
         }
-        if (strcmp(argv[argc - 1], "&") == 0)
+        if (strcmp(argv[argc - 1], "&") == 0) 
         {
             fprintf(stderr, "Error: cd cannot run in background.\n");
         }
         return cd(argv[1]);
     }
 
-    // executes built in command if true
-    if (strcmp(argv[argc - 1], "&") == 0)
-    { // background process
-        pid_t pid = fork();
+ 
+    //Executes other processes 
 
+    if (strcmp(argv[argc - 1], "&") == 0) //If command has an & it should run in the background
+    { 
+        pid_t pid = fork();
         if (pid == -1)
         {
             fprintf(stderr, "Error: fork() failed. %s.\n", strerror(errno));
             return 1;
         }
-        
-        
-        
         else if (pid == 0)
         {
-            printf("pid: %d cmd: %s", getpid(), command);
-            argv[argc - 1] = '\0'; // remove &
+            argv[argc - 1] = '\0'; 
+            printf("pid: %d cmd: %s", getpid(), command); //should print out the current running process
             if ((execvp(argv[0], argv) == -1))
             {
                 fprintf(stderr, "Error: exec() failed. %s.\n", strerror(errno));
@@ -137,8 +138,8 @@ int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
             //printf("Msh:%s:%s>", user, cwd);
         }
     }
-    else
-    { // foreground process
+    else //otherwise the command should run in the foreground
+    { 
         pid_t pid = fork();
         if (pid == -1)
         {
@@ -147,7 +148,7 @@ int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
         }
         else if (pid == 0)
         {
-            if ((execvp(argv[0], argv) == -1))
+            if ((execvp(argv[0], argv) == -1)) //replaces the current child process with inputed command process
             {
                 fprintf(stderr, "Error: exec() failed. %s.\n", strerror(errno));
                 return 1;
@@ -168,15 +169,16 @@ int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
 }
 
 
+//Signal Helpers used in main function
 void bg_helper(int signal)
 {
-    int temperrno = errno;
+    int error_code = errno;
     pid_t pid;
     while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
     {
         printf("\npid %d done.\n", pid);
     }
-    errno = temperrno;
+    errno = error_code;
 }
 
 void sigint_helper(int sign)
@@ -187,7 +189,7 @@ void sigint_helper(int sign)
 
 
 
-
+//Main Function
 int main(int argc, char *argv[])
 {
     int MaxLine = 1024;
@@ -198,14 +200,20 @@ int main(int argc, char *argv[])
     struct passwd *pwde;
     char *user;
     char cwd[PATH_MAX];
-    if (signal(SIGINT, sigint_helper) == SIG_ERR)
-    {
-        fprintf(stderr, "Error: Cannot register signal handler. %s.\n", strerror(errno));
-    }
+
+
+    //Checking and setting signals
     if (signal(SIGCHLD, bg_helper) == SIG_ERR)
     {
         fprintf(stderr, "Error: Cannot register signal handler. %s.\n", strerror(errno));
     }
+
+    if (signal(SIGINT, sigint_helper) == SIG_ERR)
+    {
+        fprintf(stderr, "Error: Cannot register signal handler. %s.\n", strerror(errno));
+    }
+
+    //code to get the prompt data to use in the prompt
     if ((pwde = getpwuid(getuid())) == NULL)
     {
         fprintf(stderr, "Error: Cannot get password entry. %s.\n", strerror(errno));
@@ -217,9 +225,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int parseresult = 0; // stores result of 'parse'
+    int count= 0; 
     user = pwde->pw_name;
 
+    //Infinite loop keeps on showing prompt and handles commands in foreground and background
     while (1)
     {
         if (getcwd(cwd, 2048) == NULL)
@@ -233,6 +242,8 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Error: Failed to read from stdin. %s.\n", strerror(errno));
         }
         
+        //Making sure to redisplay prompt if nothing is typed and enter is clicked
+        //This prevents segfaults from occuring
         if (strcmp(command, "\n") == 0){
         	continue;
         }
@@ -242,7 +253,8 @@ int main(int argc, char *argv[])
         
       
         if (!(command[0] == ' '))
-        {
+        {   
+            //Tokenizing command 
             token = strtok(command, " ");
             while (token != NULL)
             {
@@ -250,18 +262,18 @@ int main(int argc, char *argv[])
                 argci++;
                 token = strtok(NULL, " ");
             }
-            parseresult = command_parser(argvi, argci, command, user, cwd);
+            count = command_parser(argvi, argci, command, user, cwd);
         
-            if (parseresult == 2)
+            if (count == 2)
             {
                 break; //Exit command called so exiting the loop
             }
         }
-        // reset argc and argv
         argci = 0;
         memset(argvi, 0, MaxLine);
-        // end of loop
     }
+
+    //Killing all children processes
     if (strcmp(argvi[0], "exit") != 0)
     {
         killpg(getpid(), SIGTERM);
