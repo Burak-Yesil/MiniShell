@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string.h>
 #include <pwd.h>
@@ -10,7 +11,7 @@
 #include <sys/signal.h>
 #include <stdlib.h>
 #include <limits.h>
-
+#include "minishell.h"
 
 
 int cd(char *path)
