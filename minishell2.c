@@ -11,40 +11,28 @@
 #include <stdlib.h>
 #include <limits.h>
 
-void background(int signal)
-{
-    int temperrno = errno;
-    pid_t pid;
-    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
-    {
-        printf("\npid %d done.\n", pid);
-    }
-    errno = temperrno;
-}
 
-void sigintcheck(int sign)
-{
-    signal(sign, SIG_IGN);
-    fprintf(stderr, "\nError: Only exit can terminate the shell.\n");
-}
 
 int cd(char *path)
 {
+    struct passwd *pw;
     char *token = "";
     char cwd[PATH_MAX];
-    struct passwd *pw;
+
     if ((pw = getpwuid(getuid())) == NULL)
     {
         fprintf(stderr, "Error: Cannot get passwd entry. %s.\n", strerror(errno));
         return 1;
     }
+    
+    
     const char *homeDir = pw->pw_dir;
     if (strcmp(path, "cd") == 0)
     {
         chdir(homeDir);
         return 0;
     }
-    if (getcwd(cwd, 256 * 8) == NULL)
+    if (getcwd(cwd, 2048) == NULL)
     {
         fprintf(stderr, "Error: Cannot get current working directory. %s.\n", strerror(errno));
         return 1;
@@ -81,7 +69,7 @@ int cd(char *path)
     return 0;
 }
 
-int parse(char *argv[], int argc, char *command)
+int command_parser(char *argv[], int argc, char *command, char *user, char*cwd)
 {
     // Executes exit command if true
     
@@ -130,8 +118,8 @@ int parse(char *argv[], int argc, char *command)
         
         else if (pid == 0)
         {
+            printf("pid: %d cmd: %s", getpid(), command);
             argv[argc - 1] = '\0'; // remove &
-            printf("\npid: %d cmd: %s\n", getpid(), command);
             if ((execvp(argv[0], argv) == -1))
             {
                 fprintf(stderr, "Error: exec() failed. %s.\n", strerror(errno));
@@ -141,11 +129,11 @@ int parse(char *argv[], int argc, char *command)
         }
         else if (pid > 0)
         {
-        
             while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
             {
-                printf("pid %d done.\n", pid);
+                printf("pid %d done. Click Enter to Continue\n", getpid());
             }
+            //printf("Msh:%s:%s>", user, cwd);
         }
     }
     else
@@ -178,6 +166,27 @@ int parse(char *argv[], int argc, char *command)
     return 0;
 }
 
+
+void bg_helper(int signal)
+{
+    int temperrno = errno;
+    pid_t pid;
+    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
+    {
+        printf("\npid %d done.\n", pid);
+    }
+    errno = temperrno;
+}
+
+void sigint_helper(int sign)
+{
+    signal(sign, SIG_IGN);
+    fprintf(stderr, "\nError: Only exit can terminate the shell.\n");
+}
+
+
+
+
 int main(int argc, char *argv[])
 {
     int MaxLine = 1024;
@@ -188,11 +197,11 @@ int main(int argc, char *argv[])
     struct passwd *pwde;
     char *user;
     char cwd[PATH_MAX];
-    if (signal(SIGINT, sigintcheck) == SIG_ERR)
+    if (signal(SIGINT, sigint_helper) == SIG_ERR)
     {
         fprintf(stderr, "Error: Cannot register signal handler. %s.\n", strerror(errno));
     }
-    if (signal(SIGCHLD, background) == SIG_ERR)
+    if (signal(SIGCHLD, bg_helper) == SIG_ERR)
     {
         fprintf(stderr, "Error: Cannot register signal handler. %s.\n", strerror(errno));
     }
@@ -201,7 +210,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error: Cannot get password entry. %s.\n", strerror(errno));
         return 1;
     }
-    if (getcwd(cwd, 256 * sizeof(char)) == NULL)
+    if (getcwd(cwd, 2048) == NULL)
     {
         fprintf(stderr, "Error: Cannot get current working directory. %s.\n", strerror(errno));
         return 1;
@@ -212,7 +221,7 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        if (getcwd(cwd, 256 * sizeof(char)) == NULL)
+        if (getcwd(cwd, 2048) == NULL)
         {
             fprintf(stderr, "Error: Cannot get current working directory. %s.\n", strerror(errno));
             return 1;
@@ -240,15 +249,11 @@ int main(int argc, char *argv[])
                 argci++;
                 token = strtok(NULL, " ");
             }
-            parseresult = parse(argvi, argci, command);
-            if (parseresult == 1)
+            parseresult = command_parser(argvi, argci, command, user, cwd);
+        
+            if (parseresult == 2)
             {
-                // invalid command
-            }
-            else if (parseresult == 2)
-            {
-                // exit
-                break;
+                break; //Exit command called so exiting the loop
             }
         }
         // reset argc and argv
@@ -262,4 +267,3 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
-
